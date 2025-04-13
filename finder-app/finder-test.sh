@@ -37,10 +37,17 @@ process_files() {
 DIRECTORY=$1
 KEY=$2
 
+if [ -z "$1" ] || [ -z "$2" ]; then
+     echo "Error: Parameters are empty."
+     exit 0
+fi
+
+
 if [ ! -d "$DIRECTORY" ]; then
      echo "Error: Directory '$dir' does not exist."
-     exit 1
+     exit 0
 fi
+
 
 # Call the function with the starting directory
 process_files $DIRECTORY
