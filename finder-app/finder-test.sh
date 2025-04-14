@@ -2,6 +2,8 @@
 
 WRITEDIR=$(pwd)/write-data
 
+mkdir -p "$WRITEDIR"
+
 make $1
 
 if [ ! -x ./writer ]; then
@@ -9,7 +11,7 @@ if [ ! -x ./writer ]; then
     exit 1
 fi
 
-for i in {1..1}; do
+for i in {1..5}; do
     FILENAME="$WRITEDIR/aeld_assignment_2-$i.txt"
     ./writer "$FILENAME" "aeld_assignment-2 file $i"
     rc=$?
