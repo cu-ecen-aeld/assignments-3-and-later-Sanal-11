@@ -17,6 +17,8 @@ int main(int argc, char *argv[]) {
     const char *filename = argv[1];
     const char *text = argv[2];
 
+    fprintf(stdout, "finename: %s  content: %s\n", filename, text);
+
     FILE *file = fopen(filename, "w");
     if (file == NULL) {
         perror("Error opening file");
