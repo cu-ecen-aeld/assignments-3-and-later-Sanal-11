@@ -9,7 +9,7 @@ if [ ! -x ./writer ]; then
     exit 1
 fi
 
-for i in {1..10}; do
+for i in {1..1}; do
     FILENAME="$WRITEDIR/aeld_assignment_2-$i.txt"
     ./writer "$FILENAME" "aeld_assignment-2 file $i"
     rc=$?
