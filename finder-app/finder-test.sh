@@ -1,5 +1,7 @@
 #!/bin/bash
 
+WRITEDIR=/tmp/write-data
+
 make $1
 
 if [ ! -x ./writer ]; then
@@ -7,9 +9,14 @@ if [ ! -x ./writer ]; then
     exit 1
 fi
 
-./writer testfile.txt "testing word"
-rc=$?
+for i in {1..10}; do
+    FILENAME="$WRITEDIR/aeld_assignment_2-$i.txt"
+    ./writer "$FILENAME" "aeld_assignment-2 file $i"
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        echo "Failed to write to $FILENAME"
+        exit 1
+    fi
+done
 
-if [ $rc -ne 0 ]; then
-    exit 1
-fi
+echo "wrote successfully"
