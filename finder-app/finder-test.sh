@@ -1,6 +1,6 @@
 #!/bin/bash
 
-WRITEDIR=/tmp/write-data
+WRITEDIR=./write-data
 
 make $1
 
