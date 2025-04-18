@@ -1,4 +1,10 @@
+#include <stdlib.h>
+#include <stdint.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include "systemcalls.h"
+#include <unistd.h>
+#include <fcntl.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,8 +22,9 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    int return_value = system(cmd);
 
-    return true;
+    return WIFEXITED(return_value) && WEXITSTATUS(return_value) == 0;
 }
 
 /**
@@ -45,9 +52,6 @@ bool do_exec(int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
 /*
  * TODO:
@@ -58,6 +62,29 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    pid_t pid = fork();
+
+    if(pid == -1){
+            perror("fork");
+            return false;
+        }
+        //start exec
+        else if(pid == 0){
+                //blocking call
+                printf("child process\n");
+                execv(command[0], command);
+                perror("execv");
+                exit(EXIT_FAILURE);
+            }
+            else{
+                    int status;
+                    printf("parent process, waiting for child: pid(%jd)\n", (intmax_t)pid);
+                    if(waitpid(pid, &status, 0) == -1){
+                            perror("waitpid");
+                            return false;
+                    }
+                    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+            }
 
     va_end(args);
 
@@ -82,8 +109,6 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
-
 
 /*
  * TODO
@@ -92,6 +117,37 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+pid_t pid = fork();
+
+if(pid == -1){
+        perror("fork");
+        return false;
+    }
+    //start exec
+    else if(pid == 0){
+            //blocking call
+            printf("child process\n");
+
+            int fd = open("testfile.txt", O_WRONLY|O_TRUNC|O_CREAT, 0644);
+            if (fd < 0) { perror("open"); abort(); }
+
+            if (dup2(fd, 1) < 0) { perror("dup2"); abort(); }
+            close(fd);
+
+            perror("execv");
+            execv(command[0], command);
+
+            exit(EXIT_FAILURE);
+        }
+        else{
+                int status;
+                printf("parent process, waiting for child: pid(%jd)\n", (intmax_t)pid);
+                if(waitpid(pid, &status, 0) == -1){
+                        perror("waitpid");
+                        return false;
+                }
+                return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+        }
 
     va_end(args);
 
