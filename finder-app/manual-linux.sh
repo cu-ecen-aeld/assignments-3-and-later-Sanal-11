@@ -5,13 +5,18 @@
 set -e
 set -u
 
-OUTDIR=/tmp/aeld
+# OUTDIR=~/tmp/aeld
+OUTDIR=/home/win/workspace/coursera/tmp
 KERNEL_REPO=git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
 KERNEL_VERSION=v5.15.163
 BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
 CROSS_COMPILE=aarch64-none-linux-gnu-
+WROK_SPACE=/home/win/workspace/coursera/assignment-1-Sanal-11
+
+export ARCH=arm64
+export CROSS_COMPILE=aarch64-none-linux-gnu-
 
 if [ $# -lt 1 ]
 then
@@ -35,6 +40,12 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     git checkout ${KERNEL_VERSION}
 
     # TODO: Add your kernel build steps here
+     
+    #make mrproper
+    #make defconfig
+    
+    make Image modules dtbs -j$(nproc)
+    cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
 fi
 
 echo "Adding the Image in outdir"
@@ -48,6 +59,7 @@ then
 fi
 
 # TODO: Create necessary base directories
+mkdir -p ${OUTDIR}/rootfs/{bin,sbin,etc,proc,sys,urs/{bin,sbin},dev,lib,lib64,home}
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/busybox" ]
@@ -56,25 +68,54 @@ git clone git://busybox.net/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
     # TODO:  Configure busybox
+    make distclean
+    make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig
+    make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc)
+    make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CONFIG_PREFIX=../rootfs install
+
 else
     cd busybox
 fi
 
 # TODO: Make and install busybox
+# make  ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) CONFIG_PREFIX=${OUTDIR}/rootfs install
+
+make CONFIG_PREFIX=${OUTDIR}/rootfs install
 
 echo "Library dependencies"
-${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
-${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
+${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "program interpreter"
+${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
+cp /opt/arm-gnu-toolchain-13.3.rel1-x86_64-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib
+cp /opt/arm-gnu-toolchain-13.3.rel1-x86_64-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc/lib64/libm.so.6 ${OUTDIR}/rootfs/lib64
+cp /opt/arm-gnu-toolchain-13.3.rel1-x86_64-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc/lib64/libc.so.6 ${OUTDIR}/rootfs/lib64
+cp /opt/arm-gnu-toolchain-13.3.rel1-x86_64-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib64
 
 # TODO: Make device nodes
+sudo mknod -m 666 ${OUTDIR}/rootfs/dev/null c 1 3
+sudo mknod -m 666 ${OUTDIR}/rootfs/dev/console c 5 1
 
 # TODO: Clean and build the writer utility
+make CROSS_COMPILE=${CROSS_COMPILE}
+
 
 # TODO: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
+cp ${WROK_SPACE}/finder-app/finder.sh ${OUTDIR}/rootfs/home
+cp ${WROK_SPACE}/finder-app/finder-test.sh ${OUTDIR}/rootfs/home
+cp ${WROK_SPACE}/finder-app/autorun-qemu.sh ${OUTDIR}/rootfs/home
+cp ${WROK_SPACE}/finder-app/writer ${OUTDIR}/rootfs/home
+sudo cp -rL ${WROK_SPACE}/finder-app/conf ${OUTDIR}/rootfs/home
+
 
 # TODO: Chown the root directory
+cd ${OUTDIR}/rootfs
+
+sudo chown root:root .
 
 # TODO: Create initramfs.cpio.gz
+find . -print0 | cpio --null -ov --format=newc | gzip -9 > ${OUTDIR}/initramfs.cpio.gz
+# find . | cpio -H newc -ov --owner root:root > ${OUTDIR}/initramfs.cpio
+# gzip -f ${OUTDIR}/initramfs.cpio
+echo "initramfs.cpio.gz successfully created and copied"
