@@ -47,10 +47,6 @@ mkdir -p ${OUTDIR}
 #     make Image modules dtbs -j$(nproc)
 #     cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
 # fi
-# debug
-which aarch64-none-linux-gnu-gcc
-aarch64-none-linux-gnu-gcc -print-sysroot
-# debug end
 
 echo "Adding the Image in outdir"
 
@@ -90,7 +86,7 @@ ${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "program interpre
 ${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
-SYSROOT=/opt/arm-gnu-toolchain-13.3.rel1-x86_64-aarch64-none-linux-gnu/bin/../aarch64-none-linux-gnu/libc/lib64/
+SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
 cp ${SYSROOT}/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib
 cp ${SYSROOT}/libm.so.6 ${OUTDIR}/rootfs/lib64
 cp ${SYSROOT}/libc.so.6 ${OUTDIR}/rootfs/lib64
