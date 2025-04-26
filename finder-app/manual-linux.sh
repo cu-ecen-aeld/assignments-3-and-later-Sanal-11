@@ -104,7 +104,6 @@ sudo mknod -m 666 ${OUTDIR}/rootfs/dev/null c 1 3
 sudo mknod -m 666 ${OUTDIR}/rootfs/dev/console c 5 1
 
 # TODO: Clean and build the writer utility
-WORK_SPACE=$(realpath "$(dirname "$0")/..")
 echo "finder app ${FINDER_APP_DIR}"
 ls ${FINDER_APP_DIR}
 echo "work space : ${WORK_SPACE}"
