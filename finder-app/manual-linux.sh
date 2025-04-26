@@ -28,25 +28,29 @@ fi
 
 mkdir -p ${OUTDIR}
 
-cd "$OUTDIR"
-if [ ! -d "${OUTDIR}/linux-stable" ]; then
-    #Clone only if the repository does not exist.
-	echo "CLONING GIT LINUX STABLE VERSION ${KERNEL_VERSION} IN ${OUTDIR}"
-	git clone ${KERNEL_REPO} --depth 1 --single-branch --branch ${KERNEL_VERSION}
-fi
-if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
-    cd linux-stable
-    echo "Checking out version ${KERNEL_VERSION}"
-    git checkout ${KERNEL_VERSION}
+# cd "$OUTDIR"
+# if [ ! -d "${OUTDIR}/linux-stable" ]; then
+#     #Clone only if the repository does not exist.
+# 	echo "CLONING GIT LINUX STABLE VERSION ${KERNEL_VERSION} IN ${OUTDIR}"
+# 	git clone ${KERNEL_REPO} --depth 1 --single-branch --branch ${KERNEL_VERSION}
+# fi
+# if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
+#     cd linux-stable
+#     echo "Checking out version ${KERNEL_VERSION}"
+#     git checkout ${KERNEL_VERSION}
 
-    # TODO: Add your kernel build steps here
+#     # TODO: Add your kernel build steps here
      
-    make mrproper
-    make defconfig
+#     make mrproper
+#     make defconfig
     
-    make Image modules dtbs -j$(nproc)
-    cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
-fi
+#     make Image modules dtbs -j$(nproc)
+#     cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
+# fi
+# debug
+which aarch64-none-linux-gnu-gcc
+aarch64-none-linux-gnu-gcc -print-sysroot
+# debug end
 
 echo "Adding the Image in outdir"
 
