@@ -28,25 +28,25 @@ fi
 
 mkdir -p ${OUTDIR}
 
-# cd "$OUTDIR"
-# if [ ! -d "${OUTDIR}/linux-stable" ]; then
-#     #Clone only if the repository does not exist.
-# 	echo "CLONING GIT LINUX STABLE VERSION ${KERNEL_VERSION} IN ${OUTDIR}"
-# 	git clone ${KERNEL_REPO} --depth 1 --single-branch --branch ${KERNEL_VERSION}
-# fi
-# if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
-#     cd linux-stable
-#     echo "Checking out version ${KERNEL_VERSION}"
-#     git checkout ${KERNEL_VERSION}
+cd "$OUTDIR"
+if [ ! -d "${OUTDIR}/linux-stable" ]; then
+    #Clone only if the repository does not exist.
+	echo "CLONING GIT LINUX STABLE VERSION ${KERNEL_VERSION} IN ${OUTDIR}"
+	git clone ${KERNEL_REPO} --depth 1 --single-branch --branch ${KERNEL_VERSION}
+fi
+if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
+    cd linux-stable
+    echo "Checking out version ${KERNEL_VERSION}"
+    git checkout ${KERNEL_VERSION}
 
-#     # TODO: Add your kernel build steps here
+    # TODO: Add your kernel build steps here
      
-#     make mrproper
-#     make defconfig
+    make mrproper
+    make defconfig
     
-#     make Image modules dtbs -j$(nproc)
-#     cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
-# fi
+    make Image modules dtbs -j$(nproc)
+    cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
+fi
 
 echo "Adding the Image in outdir"
 
@@ -86,11 +86,14 @@ ${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "program interpre
 ${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
+which aarch64-none-linux-gnu-gcc
+aarch64-none-linux-gnu-gcc -print-sysroot
+ls ${SYSROOT}
 SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
-cp ${SYSROOT}/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib
-cp ${SYSROOT}/libm.so.6 ${OUTDIR}/rootfs/lib64
-cp ${SYSROOT}/libc.so.6 ${OUTDIR}/rootfs/lib64
-cp ${SYSROOT}/libresolv.so.2 ${OUTDIR}/rootfs/lib64
+cp ${SYSROOT}/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib
+cp ${SYSROOT}/lib64/libm.so.6 ${OUTDIR}/rootfs/lib64
+cp ${SYSROOT}/lib64/libc.so.6 ${OUTDIR}/rootfs/lib64
+cp ${SYSROOT}/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib64
 
 # TODO: Make device nodes
 cd ..
