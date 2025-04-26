@@ -104,6 +104,9 @@ sudo mknod -m 666 ${OUTDIR}/rootfs/dev/null c 1 3
 sudo mknod -m 666 ${OUTDIR}/rootfs/dev/console c 5 1
 
 # TODO: Clean and build the writer utility
+WORK_SPACE=$(realpath "$(dirname "$0")/..")
+echo "work space :"
+echo ${WORK_SPACE}
 cd ${WORK_SPACE}/finder-app/
 echo "make writer $(pwd)"
 make CROSS_COMPILE=${CROSS_COMPILE}
