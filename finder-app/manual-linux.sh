@@ -106,7 +106,7 @@ sudo mknod -m 666 ${OUTDIR}/rootfs/dev/console c 5 1
 echo "finder app ${FINDER_APP_DIR}"
 ls ${FINDER_APP_DIR}
 
-cd ${FINDER_APP_DIR}/finder-app/
+cd ${FINDER_APP_DIR}
 echo "make writer $(pwd)"
 make CROSS_COMPILE=${CROSS_COMPILE}
 
