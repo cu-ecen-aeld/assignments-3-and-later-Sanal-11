@@ -17,6 +17,9 @@ WORK_SPACE=/home/win/workspace/coursera/assignment-1-Sanal-11
 
 export ARCH=arm64
 export CROSS_COMPILE=aarch64-none-linux-gnu-
+#debug
+apt update && apt install -y qemu-system-aarch64
+#debug
 
 if [ $# -lt 1 ]
 then
