@@ -13,7 +13,6 @@ BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
 CROSS_COMPILE=aarch64-none-linux-gnu-
-WORK_SPACE=/home/win/workspace/coursera/assignment-1-Sanal-11
 
 export ARCH=arm64
 export CROSS_COMPILE=aarch64-none-linux-gnu-
@@ -106,21 +105,19 @@ sudo mknod -m 666 ${OUTDIR}/rootfs/dev/console c 5 1
 # TODO: Clean and build the writer utility
 echo "finder app ${FINDER_APP_DIR}"
 ls ${FINDER_APP_DIR}
-echo "work space : ${WORK_SPACE}"
-ls ${WORK_SPACE}
 
-cd ${WORK_SPACE}/finder-app/
+cd ${FINDER_APP_DIR}/finder-app/
 echo "make writer $(pwd)"
 make CROSS_COMPILE=${CROSS_COMPILE}
 
 
 # TODO: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
-cp ${WORK_SPACE}/finder-app/finder.sh ${OUTDIR}/rootfs/home
-cp ${WORK_SPACE}/finder-app/finder-test.sh ${OUTDIR}/rootfs/home
-cp ${WORK_SPACE}/finder-app/autorun-qemu.sh ${OUTDIR}/rootfs/home
-cp ${WORK_SPACE}/finder-app/writer ${OUTDIR}/rootfs/home
-sudo cp -rL ${WORK_SPACE}/finder-app/conf ${OUTDIR}/rootfs/home
+cp ${FINDER_APP_DIR}/finder-app/finder.sh ${OUTDIR}/rootfs/home
+cp ${FINDER_APP_DIR}/finder-app/finder-test.sh ${OUTDIR}/rootfs/home
+cp ${FINDER_APP_DIR}/finder-app/autorun-qemu.sh ${OUTDIR}/rootfs/home
+cp ${FINDER_APP_DIR}/finder-app/writer ${OUTDIR}/rootfs/home
+sudo cp -rL ${FINDER_APP_DIR}/finder-app/conf ${OUTDIR}/rootfs/home
 
 
 # TODO: Chown the root directory
