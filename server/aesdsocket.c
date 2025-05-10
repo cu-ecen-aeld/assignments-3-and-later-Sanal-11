@@ -20,6 +20,42 @@ int server_fd = -1;
 int client_fd = -1;
 FILE *file = NULL;
 
+void daemonize()
+{
+    pid_t pid;
+
+    // Fork the first time
+    pid = fork();
+    if (pid < 0) exit(EXIT_FAILURE);
+    if (pid > 0) exit(EXIT_SUCCESS); // parent exits
+
+    // Create new session and process group
+    if (setsid() < 0) exit(EXIT_FAILURE);
+
+    // Ignore SIGHUP and fork again
+    signal(SIGHUP, SIG_IGN);
+    pid = fork();
+    if (pid < 0) exit(EXIT_FAILURE);
+    if (pid > 0) exit(EXIT_SUCCESS);
+
+    // Set new file permissions
+    umask(0);
+
+    // Change to root directory
+    chdir("/");
+
+    // Close all open file descriptors
+    for (int fd = sysconf(_SC_OPEN_MAX); fd >= 0; fd--) {
+        close(fd);
+    }
+
+    // Redirect stdin, stdout, stderr to /dev/null
+    open("/dev/null", O_RDWR); // stdin
+    dup(0); // stdout
+    dup(0); // stderr
+}
+
+
 void clean_exit(int signal_number) {
     syslog(LOG_INFO, "Caught signal, exiting");
 
@@ -40,13 +76,17 @@ void setup_signal_handler() {
     sigaction(SIGTERM, &sa, NULL);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_size;
     char client_ip[INET_ADDRSTRLEN];
     char *recv_buf = NULL;
     // size_t recv_buf_size = 0;
     ssize_t bytes_read;
+
+    if (argc == 2 && strcmp(argv[1], "-d") == 0) {
+        daemonize();
+    }
 
     openlog("aesdsocket", LOG_PID, LOG_USER);
     setup_signal_handler();
