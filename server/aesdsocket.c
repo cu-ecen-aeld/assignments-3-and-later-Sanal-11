@@ -51,18 +51,18 @@ int main() {
     openlog("aesdsocket", LOG_PID, LOG_USER);
     setup_signal_handler();
 
-    // Create socket
+    // socket
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
         syslog(LOG_ERR, "Socket creation failed: %s", strerror(errno));
         return -1;
     }
 
-    // Allow address reuse
+    // address reuse
     int optval = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
-    // Bind
+    // binding
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
@@ -74,7 +74,7 @@ int main() {
         return -1;
     }
 
-    // Listen
+    // wait for client to connect 
     if (listen(server_fd, BACKLOG) == -1) {
         syslog(LOG_ERR, "Listen failed: %s", strerror(errno));
         close(server_fd);
