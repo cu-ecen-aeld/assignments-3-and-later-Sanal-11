@@ -141,8 +141,9 @@ int main(int argc, char *argv[]) {
         int newline_found = 0;
 
         while (!newline_found) {
-            bytes_read = recv(client_fd, buffer, sizeof(buffer), 0);
+            bytes_read = recv(client_fd, buffer, sizeof(buffer)-1, 0);
             if (bytes_read <= 0) break;
+	        buffer[bytes_read] = '\0';
 
             char *temp = realloc(recv_buf, total_len + bytes_read + 1);
             if (!temp) {
