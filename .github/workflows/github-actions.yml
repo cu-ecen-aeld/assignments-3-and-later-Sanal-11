@@ -24,7 +24,3 @@ jobs:
             run : git submodule update --init --recursive
           - name: Run full test
             run: ./full-test.sh
-          - name: Pause for investigation
-            run: |
-              echo "sleep 1hr"
-              sleep 3600
