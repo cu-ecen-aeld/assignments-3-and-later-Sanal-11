@@ -94,11 +94,11 @@ int main(int argc, char *argv[]) {
     int is_daemon = 0;
 
     if (argc == 2 && strcmp(argv[1], "-d") == 0) {
-    //    daemonize();
+        // daemonize();
         is_daemon = 1;
     }
 
-    openlog("aesdsocket", LOG_PID, LOG_USER);
+    openlog("aesdsocket", LOG_PID, LOG_DAEMON);
     setup_signal_handler();
 
     // socket
@@ -134,6 +134,8 @@ int main(int argc, char *argv[]) {
     if (is_daemon) {
         syslog(LOG_INFO, "Daemonizing process...");
         daemonize();
+        closelog();
+        openlog("aesdsocket", LOG_PID, LOG_DAEMON);
     }
 
 
@@ -147,7 +149,7 @@ int main(int argc, char *argv[]) {
         }
 
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
-        // syslog(LOG_INFO, "Accepted connection from %s", client_ip);
+        syslog(LOG_INFO, "Accepted connection from %s", client_ip);
 
         // Receive data until newline
         recv_buf = NULL;
@@ -193,7 +195,7 @@ int main(int argc, char *argv[]) {
         free(recv_buf);
         recv_buf = NULL;
 
-        // syslog(LOG_INFO, "Closed connection from %s", client_ip);
+        syslog(LOG_INFO, "Closed connection from %s", client_ip);
         close(client_fd);
         client_fd = -1;
     }
