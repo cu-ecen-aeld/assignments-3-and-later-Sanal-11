@@ -45,14 +45,22 @@ void daemonize()
     chdir("/");
 
     // Close all open file descriptors
-    for (int fd = sysconf(_SC_OPEN_MAX); fd >= 0; fd--) {
-        close(fd);
+    long max_fd = sysconf(_SC_OPEN_MAX);
+    for (int fd = 0; fd < max_fd; fd++) {
+        if (fd != server_fd && fd != STDIN_FILENO && fd != STDOUT_FILENO && fd != STDERR_FILENO) {
+            close(fd);
+        }
     }
 
     // Redirect stdin, stdout, stderr to /dev/null
-    open("/dev/null", O_RDWR); // stdin
-    dup(0); // stdout
-    dup(0); // stderr
+    int fd0 = open("/dev/null", O_RDWR);
+    if (fd0 != -1) {
+       dup2(fd0, STDIN_FILENO);  // 0
+       dup2(fd0, STDOUT_FILENO); // 1
+       dup2(fd0, STDERR_FILENO); // 2
+        if (fd0 > STDERR_FILENO) close(fd0); // avoid FD leak
+    }
+
 }
 
 
@@ -83,9 +91,11 @@ int main(int argc, char *argv[]) {
     char *recv_buf = NULL;
     // size_t recv_buf_size = 0;
     ssize_t bytes_read;
+    int is_daemon = 0;
 
     if (argc == 2 && strcmp(argv[1], "-d") == 0) {
-        daemonize();
+    //    daemonize();
+        is_daemon = 1;
     }
 
     openlog("aesdsocket", LOG_PID, LOG_USER);
@@ -121,6 +131,12 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    if (is_daemon) {
+        syslog(LOG_INFO, "Daemonizing process...");
+        daemonize();
+    }
+
+
     // Loop to accept connections
     while (1) {
         addr_size = sizeof(client_addr);
@@ -131,7 +147,7 @@ int main(int argc, char *argv[]) {
         }
 
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
-        syslog(LOG_INFO, "Accepted connection from %s", client_ip);
+        // syslog(LOG_INFO, "Accepted connection from %s", client_ip);
 
         // Receive data until newline
         recv_buf = NULL;
@@ -177,7 +193,7 @@ int main(int argc, char *argv[]) {
         free(recv_buf);
         recv_buf = NULL;
 
-        syslog(LOG_INFO, "Closed connection from %s", client_ip);
+        // syslog(LOG_INFO, "Closed connection from %s", client_ip);
         close(client_fd);
         client_fd = -1;
     }
