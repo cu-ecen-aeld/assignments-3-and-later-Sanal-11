@@ -1,205 +1,177 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <syslog.h>
-#include <signal.h>
-#include <fcntl.h>
 #include <errno.h>
+#include <signal.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <syslog.h>
+#include <fcntl.h>
 #include <sys/stat.h>
+#include <stdbool.h>
 
 #define PORT 9000
-#define BACKLOG 10
-#define FILEPATH "/var/tmp/aesdsocketdata"
+#define FILE_PATH "/var/tmp/aesdsocketdata"
+#define BUFFER_SIZE 1024
 
-int server_fd = -1;
-int client_fd = -1;
-FILE *file = NULL;
+// sig exit flag
+static volatile bool exit_requested = false;
 
-void daemonize()
-{
-    pid_t pid;
+//mutex for file access
+pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-    // Fork the first time
-    pid = fork();
-    if (pid < 0) exit(EXIT_FAILURE);
-    if (pid > 0) exit(EXIT_SUCCESS); // parent exits
+//thread node, singly linked list
+typedef struct thread_node {
+    pthread_t thread_id;
+    int client_fd;
+    struct thread_node *next;
+} thread_node_t;
 
-    // Create new session and process group
-    if (setsid() < 0) exit(EXIT_FAILURE);
+thread_node_t *head = NULL;
+pthread_mutex_t list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-    // Ignore SIGHUP and fork again
-    signal(SIGHUP, SIG_IGN);
-    pid = fork();
-    if (pid < 0) exit(EXIT_FAILURE);
-    if (pid > 0) exit(EXIT_SUCCESS);
-
-    // Set new file permissions
-    umask(0);
-
-    // Change to root directory
-    chdir("/");
-
-    // Close all open file descriptors
-    long max_fd = sysconf(_SC_OPEN_MAX);
-    for (int fd = 0; fd < max_fd; fd++) {
-        if (fd != server_fd && fd != STDIN_FILENO && fd != STDOUT_FILENO && fd != STDERR_FILENO) {
-            close(fd);
-        }
-    }
-
-    // Redirect stdin, stdout, stderr to /dev/null
-    int fd0 = open("/dev/null", O_RDWR);
-    if (fd0 != -1) {
-       dup2(fd0, STDIN_FILENO);  // 0
-       dup2(fd0, STDOUT_FILENO); // 1
-       dup2(fd0, STDERR_FILENO); // 2
-        if (fd0 > STDERR_FILENO) close(fd0); // avoid FD leak
-    }
-
-}
-
-
-void clean_exit(int signal_number) {
+void signal_handler(int signum) {
+    exit_requested = true;
     syslog(LOG_INFO, "Caught signal, exiting");
-
-    if (client_fd != -1) close(client_fd);
-    if (server_fd != -1) close(server_fd);
-    unlink(FILEPATH);
-
-    closelog();
-    exit(0);
 }
 
-void setup_signal_handler() {
-    struct sigaction sa;
-    sa.sa_handler = clean_exit;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
+//cleanup helper
+void add_thread_to_list(pthread_t thread_id, int client_fd) {
+    thread_node_t *node = malloc(sizeof(thread_node_t));
+    node->thread_id = thread_id;
+    node->client_fd = client_fd;
+    node->next = NULL;
+
+    pthread_mutex_lock(&list_mutex);
+    node->next = head;
+    head = node;
+    pthread_mutex_unlock(&list_mutex);
+}
+
+//remove thread from list
+void cleanup_thread_list() {
+    pthread_mutex_lock(&list_mutex);
+    thread_node_t *current = head;
+    while (current) {
+        pthread_join(current->thread_id, NULL);
+        close(current->client_fd);
+        thread_node_t *tmp = current;
+        current = current->next;
+        free(tmp);
+    }
+    head = NULL;
+    pthread_mutex_unlock(&list_mutex);
+}
+
+//thread function for client
+void *handle_client(void *arg) {
+    int client_fd = *(int *)arg;
+    free(arg);
+    char buffer[BUFFER_SIZE];
+    ssize_t bytes_read;
+    FILE *fp;
+
+    //fetch until newline
+    char *accumulated_data = NULL;
+    size_t total_size = 0;
+
+    while ((bytes_read = recv(client_fd, buffer, sizeof(buffer), 0)) > 0) {
+        accumulated_data = realloc(accumulated_data, total_size + bytes_read + 1);
+        memcpy(accumulated_data + total_size, buffer, bytes_read);
+        total_size += bytes_read;
+        accumulated_data[total_size] = '\0';
+
+        if (strchr(buffer, '\n')) break;
+    }
+
+    if (bytes_read > 0 && accumulated_data) {
+        pthread_mutex_lock(&file_mutex);
+        fp = fopen(FILE_PATH, "a");
+        fwrite(accumulated_data, 1, total_size, fp);
+        fclose(fp);
+        pthread_mutex_unlock(&file_mutex);
+
+        pthread_mutex_lock(&file_mutex);
+        fp = fopen(FILE_PATH, "r");
+        while ((bytes_read = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+            send(client_fd, buffer, bytes_read, 0);
+        }
+        fclose(fp);
+        pthread_mutex_unlock(&file_mutex);
+    }
+
+    free(accumulated_data);
+    close(client_fd);
+    return NULL;
 }
 
 int main(int argc, char *argv[]) {
+    int sockfd, client_fd;
     struct sockaddr_in server_addr, client_addr;
-    socklen_t addr_size;
-    char client_ip[INET_ADDRSTRLEN];
-    char *recv_buf = NULL;
-    // size_t recv_buf_size = 0;
-    ssize_t bytes_read;
-    int is_daemon = 0;
+    socklen_t addrlen = sizeof(struct sockaddr_in);
 
-    if (argc == 2 && strcmp(argv[1], "-d") == 0) {
-        // daemonize();
-        is_daemon = 1;
-    }
+    //syslog
+    openlog("aesdsocket", LOG_PID | LOG_CONS, LOG_USER);
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
 
-    openlog("aesdsocket", LOG_PID, LOG_DAEMON);
-    setup_signal_handler();
-
-    // socket
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == -1) {
+    //create socket
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
         syslog(LOG_ERR, "Socket creation failed: %s", strerror(errno));
-        return -1;
+        exit(EXIT_FAILURE);
     }
 
-    // address reuse
-    int optval = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+    int reuse = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
 
-    // binding
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(PORT);
+    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
+    if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         syslog(LOG_ERR, "Bind failed: %s", strerror(errno));
-        close(server_fd);
-        return -1;
+        exit(EXIT_FAILURE);
     }
 
-    // wait for client to connect 
-    if (listen(server_fd, BACKLOG) == -1) {
-        syslog(LOG_ERR, "Listen failed: %s", strerror(errno));
-        close(server_fd);
-        return -1;
-    }
+    listen(sockfd, 10);
 
-    if (is_daemon) {
-        syslog(LOG_INFO, "Daemonizing process...");
-        daemonize();
-        closelog();
-        openlog("aesdsocket", LOG_PID, LOG_DAEMON);
-    }
-
-
-    // Loop to accept connections
-    while (1) {
-        addr_size = sizeof(client_addr);
-        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &addr_size);
-        if (client_fd == -1) {
+    //main loop
+    while (!exit_requested) {
+        client_fd = accept(sockfd, (struct sockaddr *)&client_addr, &addrlen);
+        if (client_fd < 0) {
+            if (exit_requested) break;
             syslog(LOG_ERR, "Accept failed: %s", strerror(errno));
             continue;
         }
 
-        inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
+        char client_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip, INET_ADDRSTRLEN);
         syslog(LOG_INFO, "Accepted connection from %s", client_ip);
 
-        // Receive data until newline
-        recv_buf = NULL;
-        // recv_buf_size = 0;
-        char buffer[1024];
-        size_t total_len = 0;
-        int newline_found = 0;
+        int *client_fd_ptr = malloc(sizeof(int));
+        *client_fd_ptr = client_fd;
+        pthread_t tid;
 
-        while (!newline_found) {
-            bytes_read = recv(client_fd, buffer, sizeof(buffer)-1, 0);
-            if (bytes_read <= 0) break;
-	        buffer[bytes_read] = '\0';
-
-            char *temp = realloc(recv_buf, total_len + bytes_read + 1);
-            if (!temp) {
-                syslog(LOG_ERR, "Memory allocation failed");
-                break;
-            }
-            recv_buf = temp;
-            memcpy(recv_buf + total_len, buffer, bytes_read);
-            total_len += bytes_read;
-            recv_buf[total_len] = '\0';
-
-            if (strchr(buffer, '\n')) newline_found = 1;
+        if (pthread_create(&tid, NULL, handle_client, client_fd_ptr) != 0) {
+            syslog(LOG_ERR, "Failed to create thread");
+            close(client_fd);
+            free(client_fd_ptr);
+            continue;
         }
 
-        // Append to file
-        file = fopen(FILEPATH, "a");
-        if (file) {
-            fwrite(recv_buf, 1, total_len, file);
-            fclose(file);
-        }
-
-        // Send full file back
-        file = fopen(FILEPATH, "r");
-        if (file) {
-            while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-                send(client_fd, buffer, bytes_read, 0);
-            }
-            fclose(file);
-        }
-
-        free(recv_buf);
-        recv_buf = NULL;
-
-        syslog(LOG_INFO, "Closed connection from %s", client_ip);
-        close(client_fd);
-        client_fd = -1;
+        add_thread_to_list(tid, client_fd);
     }
 
-    clean_exit(0);
+    //cleanup
+    close(sockfd);
+    cleanup_thread_list();
+    remove(FILE_PATH);
+    closelog();
     return 0;
 }
