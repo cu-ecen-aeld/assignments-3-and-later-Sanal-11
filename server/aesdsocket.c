@@ -61,7 +61,10 @@ void daemonize()
     umask(0);
 
     // Change to root directory
-    chdir("/");
+    if (chdir("/") < 0) {
+        perror("chdir");
+        exit(EXIT_FAILURE);
+    }
 
     // Close all open file descriptors
     long max_fd = sysconf(_SC_OPEN_MAX);
