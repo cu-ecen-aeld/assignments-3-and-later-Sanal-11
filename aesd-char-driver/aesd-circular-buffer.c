@@ -29,9 +29,27 @@
 struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct aesd_circular_buffer *buffer,
             size_t char_offset, size_t *entry_offset_byte_rtn )
 {
-    /**
-    * TODO: implement per description
-    */
+    size_t cumulative_offset = 0;
+    uint8_t index = buffer->out_offs;
+    uint8_t count = 0;
+
+    // Loop through valid entries in order
+    while ((count < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) && 
+           (buffer->full || index != buffer->in_offs)) 
+    {
+        struct aesd_buffer_entry *entry = &buffer->entry[index];
+
+        if (char_offset < (cumulative_offset + entry->size)) {
+            *entry_offset_byte_rtn = char_offset - cumulative_offset;
+            return entry;
+        }
+
+        cumulative_offset += entry->size;
+        index = (index + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+        count++;
+    }
+
+    // Offset not found in available data
     return NULL;
 }
 
@@ -44,9 +62,22 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
 */
 void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
 {
-    /**
-    * TODO: implement per description
-    */
+    if (buffer->full) {
+        // Free the memory of the entry being overwritten
+//        free((void *)buffer->entry[buffer->out_offs].buffptr);
+
+        // Advance out_offs since we're overwriting the oldest entry
+        buffer->out_offs = (buffer->out_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+    }
+
+    // Copy the new entry into the buffer
+    buffer->entry[buffer->in_offs] = *add_entry;
+
+    // Advance in_offs
+    buffer->in_offs = (buffer->in_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+
+    // Check if we're now full
+    buffer->full = (buffer->in_offs == buffer->out_offs);
 }
 
 /**
