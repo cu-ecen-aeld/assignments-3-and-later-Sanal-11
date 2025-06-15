@@ -16,7 +16,8 @@
 
 #define PORT 9000
 #define BACKLOG 10
-#define FILE_PATH "/var/tmp/aesdsocketdata"
+//#define FILE_PATH "/var/tmp/aesdsocketdata"
+#define FILE_PATH "/dev/aesdchar"
 #define BUFFER_SIZE 1024
 
 // sig exit flag
@@ -144,7 +145,7 @@ void *timestamp_thread_func(void *arg) {
         pthread_mutex_lock(&file_mutex);
         FILE *fp = fopen(FILE_PATH, "a");
         if (fp) {
-            fputs(timestamp_line, fp);
+            // fputs(timestamp_line, fp);
             fclose(fp);
         } else {
             syslog(LOG_ERR, "Failed to open file for timestamp: %s", strerror(errno));

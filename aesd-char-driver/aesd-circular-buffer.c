@@ -10,8 +10,18 @@
 
 #ifdef __KERNEL__
 #include <linux/string.h>
+#include <linux/slab.h>  // for kmalloc
 #else
 #include <string.h>
+#include <stdlib.h>      // for malloc
+#include <stdio.h>
+#endif
+
+// Unified free macro
+#ifdef __KERNEL__
+#define xfree(ptr) kfree(ptr)
+#else
+#define xfree(ptr) free(ptr)
 #endif
 
 #include "aesd-circular-buffer.h"
@@ -41,6 +51,7 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
 
         if (char_offset < (cumulative_offset + entry->size)) {
             *entry_offset_byte_rtn = char_offset - cumulative_offset;
+            PDEBUG("Info: Offset found in available data");
             return entry;
         }
 
@@ -48,8 +59,14 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
         index = (index + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
         count++;
     }
-
-    // Offset not found in available data
+        PDEBUG("while check: %d", (count < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) && \
+                (buffer->full || index != buffer->in_offs));
+                
+    PDEBUG("Info: in_offs %d", buffer->in_offs);
+    PDEBUG("Info: out_offs %d", buffer->out_offs);
+    PDEBUG("Info: buff_full %d", buffer->full);
+    PDEBUG("Info: buff_full %d", buffer->full);
+    PDEBUG("Info: count %d", count);
     return NULL;
 }
 
@@ -64,7 +81,7 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
 {
     if (buffer->full) {
         // Free the memory of the entry being overwritten
-//        free((void *)buffer->entry[buffer->out_offs].buffptr);
+        // xfree((void *)buffer->entry[buffer->out_offs].buffptr);
 
         // Advance out_offs since we're overwriting the oldest entry
         buffer->out_offs = (buffer->out_offs + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
