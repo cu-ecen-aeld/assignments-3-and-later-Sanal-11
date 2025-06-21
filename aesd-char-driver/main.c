@@ -148,7 +148,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     // Append data to temporary buffer before writing to circular buffer
     device->entry.buffptr = krealloc(device->entry.buffptr, device->entry.size + count, GFP_KERNEL);
     if (!device->entry.buffptr) {
-        PDEBUG("Error: krealloc failed");
+        PDEBUG("Error: kernel realloc failed");
         kfree(temp_buf);
         mutex_unlock(&device->lock);
         return -ENOMEM;
@@ -253,8 +253,6 @@ static void __exit aesd_cleanup_module(void)
     free_circular_buffer();
     kfree(aesd_device.partial_write_buffer);
     mutex_unlock(&aesd_device.lock);
-
-    cdev_del(&aesd_device.cdev);
 
     unregister_chrdev_region(devno, 1);
     printk(KERN_INFO "aesdchar: unloaded module\n");

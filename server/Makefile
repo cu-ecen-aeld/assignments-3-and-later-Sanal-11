@@ -11,7 +11,7 @@ ifdef CROSS_COMPILE
     CC := $(CROSS_COMPILE)gcc
 endif
 
-all: $(TARGET) $(CLIENT_TARGET)
+all: $(TARGET)
 default: all
 
 $(TARGET): aesdsocket.c
