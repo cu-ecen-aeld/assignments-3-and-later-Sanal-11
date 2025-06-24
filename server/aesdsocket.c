@@ -13,6 +13,8 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <stdbool.h>
+#include <sys/ioctl.h>
+#include "../aesd-char-driver/aesd_ioctl.h"
 
 #define PORT 9000
 #define BACKLOG 10
@@ -38,6 +40,7 @@ pthread_mutex_t list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int server_fd = -1;
 // FILE *file = NULL;
+const char *aesd_prefix = "AESDCHAR_IOCSEEKTO:";
 
 void daemonize()
 {
@@ -164,10 +167,10 @@ void *handle_client(void *arg) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
     FILE *fp;
-
     //fetch until newline
     char *accumulated_data = NULL;
     size_t total_size = 0;
+    struct aesd_seekto seekto;
 
     while ((bytes_read = recv(client_fd, buffer, sizeof(buffer), 0)) > 0) {
         char *temp = realloc(accumulated_data, total_size + bytes_read + 1);
@@ -184,7 +187,48 @@ void *handle_client(void *arg) {
         if (strchr(buffer, '\n')) break;
     }
 
-    if (bytes_read > 0 && accumulated_data) {
+    if (accumulated_data && strncmp(accumulated_data, aesd_prefix, strlen(aesd_prefix)) == 0) {
+
+        // pthread_mutex_lock(&file_mutex);
+        // The data starts with the prefix
+		int fd = open(FILE_PATH, O_RDWR);
+        syslog(LOG_INFO, "Prefix found: %s", aesd_prefix);
+        syslog(LOG_INFO, "accumulated_data: %s", accumulated_data);
+        syslog(LOG_INFO, "seekdata: %s", accumulated_data + strlen(aesd_prefix));
+
+        if (sscanf(accumulated_data + strlen(aesd_prefix), "%d,%d", &seekto.write_cmd, &seekto.write_cmd_offset) == 2) {
+            syslog(LOG_INFO, "index: %d offset: %d", seekto.write_cmd, seekto.write_cmd_offset);
+            if (ioctl(fd, AESDCHAR_IOCSEEKTO, &seekto) == -1) {
+				syslog(LOG_ERR, "ioctl failed: %s", strerror(errno));
+			}
+            else {
+                // Send response after seeking
+                char send_buf[BUFFER_SIZE];
+                ssize_t bytes_read;
+                while ((bytes_read = read(fd, send_buf, BUFFER_SIZE)) > 0) {
+                    ssize_t total_sent = 0;
+                    while (total_sent < bytes_read) {
+                        ssize_t sent_now = send(client_fd, send_buf + total_sent, bytes_read - total_sent, 0);
+                        if (sent_now == -1) {
+                            syslog(LOG_ERR, "Send failed: %s", strerror(errno));
+                            break;
+                        }
+                        total_sent += sent_now;
+                    }
+                }
+            }
+        }
+
+        close(fd);
+        // pthread_mutex_unlock(&file_mutex);
+
+        // fp = fopen(FILE_PATH, "r");
+        // while ((bytes_read = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+        //     send(client_fd, buffer, bytes_read, 0);
+        // }
+        // close(fp);
+    }
+    else if(bytes_read > 0 && accumulated_data) {
         pthread_mutex_lock(&file_mutex);
         fp = fopen(FILE_PATH, "a");
         fwrite(accumulated_data, 1, total_size, fp);
